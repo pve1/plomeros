@@ -4,7 +4,9 @@
 
 (asdf:defsystem :plomeros
  :serial t
- :components ((:file "plomeros"))
+ :components ((:file "plomeros")
+              (:file "daily-set"))
+
  :depends-on (:cl-ppcre
               :cl-irc
               :sqlite
