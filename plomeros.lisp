@@ -29,6 +29,10 @@
   (dolist (x (split-message message))
     (irc:privmsg connection channel x)))
 
+(defun irc-notice (connection message user)
+  (dolist (x (split-message message))
+    (irc:notice connection user x)))
+
 (defmacro with-irc-message (irc-message &body body)
   (let ((irc-message* (gensym))
         (message (gensym))
@@ -80,6 +84,11 @@
                      (channel *channel*)
                      (connection *plomeros*))
   (irc-say connection msg channel))
+
+(defun plomeros-notice (msg &optional
+                        (user *sender*)
+                        (connection *plomeros*))
+  (irc-notice connection msg user))
 
 (defun plomeros-read-hook (msg)
   (register-groups-bind (recipient form)
