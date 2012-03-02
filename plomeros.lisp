@@ -86,6 +86,7 @@
       ("(.*?)[,:] *?(\\(.*\\))" *message*)
     (when (equalp recipient (get-property :nickname))
       (let* ((*read-eval* nil)
+             (*package* (find-package :plomeros))
              (sexp (read-from-string form)))
         (eval-plomeros sexp)))))
 
