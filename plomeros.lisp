@@ -77,8 +77,8 @@
     (irc:read-message-loop *plomeros*)))
 
 (defun plomeros-say (msg &optional
-                     (connection *plomeros*)
-                     (channel *channel*))
+                     (channel *channel*)
+                     (connection *plomeros*))
   (irc-say connection msg channel))
 
 (defun plomeros-read-hook (msg)
