@@ -114,7 +114,7 @@
   (daily-set-single-query "select name from daily_set_completion where name = ?" name))
 
 (defun get-aliases-for-name (name)
-  (let ((a (daily-set-query "select alias from daily_set_nickname_alias where name = ?" name)))
+  (let ((a (daily-set-query "select alias from nickname_alias where name = ?" name)))
       (mapcar #'first a)))
 
 (defun parse-integer-maybe (thing)
