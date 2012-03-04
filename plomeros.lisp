@@ -101,6 +101,7 @@
 
 (defun eval-plomeros (form)
   (format t "EVAL-PLOMEROS: ~S~%" form)
+  (assert (every #'stringp (rest form)))
   (destructuring-case form
     ((update) (asdf:load-system :plomeros))
     ((say msg) (plomeros-say msg))
