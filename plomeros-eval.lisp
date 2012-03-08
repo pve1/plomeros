@@ -79,14 +79,17 @@
 
 ;;;; Lambda
 
-(defun make-procedure (args body)
-  `(lambda ,args ,@body))
+(defun make-procedure (args body env)
+  `(lambda ,args ,env ,@body))
 
 (defun procedure-arguments (proc)
   (second proc))
 
+(defun procedure-environment (proc)
+  (third proc))
+
 (defun procedure-body (body)
-  (nthcdr 2 body))
+  (nthcdr 3 body))
 
 (defun procedurep (thing)
   (eq (car thing) 'lambda))
@@ -109,7 +112,7 @@
                            (cons var arg))
                          (procedure-arguments proc)
                          args)
-                 (empty-environment))))
+                 (procedure-environment proc))))
     (eval-plomeros (cons 'progn (procedure-body proc)))))
 
 (defun %cond (clauses &key (test #'identity))
@@ -157,7 +160,7 @@
               (set-property :nickname %new-nick)))
 
            ((lambda args &rest body)
-            (make-procedure args body))
+            (make-procedure args body *env*))
 
            ((apply proc &rest args)
             (apply-plomeros (eval-plomeros proc)
