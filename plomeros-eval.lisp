@@ -4,7 +4,6 @@
 
 (defvar *symbol-table* (make-hash-table :test 'eq))
 
-
 ;;;; Functions "exported" from lisp.
 
 (defparameter *plomeros-safe-lisp-functions*
@@ -12,6 +11,46 @@
 
 (defun safe-function-p (symbol)
   (member symbol *plomeros-safe-lisp-functions* :test #'eq))
+
+;;;; Primitives
+
+(defvar *primitive-symbols* (make-hash-table :test 'eq))
+(defvar *primitive-values* (make-hash-table :test 'eq))
+
+(defun clear-primitives ()
+  (setf *primitive-symbols* (make-hash-table :test 'eq))
+  (setf *primitive-values* (make-hash-table :test 'eq)))
+
+(defun lookup-primitive-symbol (symbol &optional (table *primitive-symbols*))
+  (gethash symbol table))
+
+(defun primitive-symbol-p (symbol &optional (table *primitive-symbols*))
+  (lookup-primitive-symbol symbol table))
+
+(defun primitive-value-p (value &optional (values *primitive-values*))
+  (gethash value values))
+
+(defun define-primitive-value (symbol value &optional
+                               (table *primitive-symbols*)
+                               (values *primitive-values*))
+  (remhash (gethash symbol table) values)
+  (setf (gethash symbol table) value)
+  (setf (gethash value values) symbol))
+
+(define-primitive-value nil nil)
+
+(define-primitive-value 'getp
+    (lambda (list indicator)
+      (getf list indicator)))
+
+(define-primitive-value 'setp
+    (lambda (symbol indicator value)
+      (let ((exist (get-symbol-value symbol)))
+        (if exist
+            (progn (setf (getf exist indicator) value)
+                   (set-symbol-value symbol exist *env*))
+            (set-symbol-value symbol (list indicator value) *env*)))))
+
 
 ;;;; Util
 
@@ -56,11 +95,13 @@
 ;;;; Global symbol table + (lexical) enviroment.
 
 (defun set-symbol-value (symbol value &optional env (symbol-table *symbol-table*))
-  (or (modify-binding-in-environment symbol value env)
-      (setf (gethash symbol symbol-table) value)))
+  (when symbol
+    (or (modify-binding-in-environment symbol value env)
+        (setf (gethash symbol symbol-table) value))))
 
 (defun get-symbol-value (symbol &optional env (symbol-table *symbol-table*))
   (or (binding-value (lookup-binding-in-environment symbol env))
+      (lookup-primitive-symbol symbol)
       (gethash symbol symbol-table)))
 
 
@@ -104,6 +145,20 @@
     (plomeros-say "Recursion is for noobs.")
     (error "Stack blown.")))
 
+(defun %cond (clauses &key (test #'identity))
+  (some (lambda (x)
+          (destructuring-bind (expression consequent) x
+            (when (funcall test (eval-plomeros expression))
+              (eval-plomeros consequent))))
+        clauses))
+
+(defun prettify-output (thing)
+  (when thing
+    (typecase thing
+      (function '#:PRIMITIVE-FUNCTION)
+      (list (mapcar #'prettify-output thing))
+      (t thing))))
+
 (defun apply-plomeros (proc args)
   (check-eval-depth)
   (let* ((*eval-depth* (+ *eval-depth* 1))
@@ -115,16 +170,11 @@
                  (procedure-environment proc))))
     (eval-plomeros (cons 'progn (procedure-body proc)))))
 
-(defun %cond (clauses &key (test #'identity))
-  (some (lambda (x)
-          (destructuring-bind (expression consequent) x
-            (when (funcall test (eval-plomeros expression))
-              (eval-plomeros consequent))))
-        clauses))
-
 (defun eval-plomeros (form &optional (*env* *env*))
   (format t "EVAL-PLOMEROS: ~S~%" form)
-  (cond ((keywordp form)
+  (cond ((null form) nil)
+
+        ((keywordp form)
          form)
 
         ((symbolp form)
@@ -145,13 +195,15 @@
            ((show msg &optional (channel *channel*))
             (plomeros-say
              (prin1-to-string
-              (eval-plomeros msg))
+              (prettify-output
+               (eval-plomeros msg)))
              (eval-plomeros channel)) )
 
            ((say msg &optional (channel *channel*))
             (plomeros-say
              (princ-to-string
-              (eval-plomeros msg))
+              (prettify-output
+               (eval-plomeros msg)))
              (eval-plomeros channel)))
 
            ((join chan) (irc:join *plomeros* (eval-plomeros chan)))
@@ -191,8 +243,14 @@
            ((t &rest rest)
             (let* ((op (car form))
                    (eval-op (eval-plomeros op)))
-              (cond ((procedurep eval-op)
-                     (apply-plomeros eval-op (mapcar #'eval-plomeros rest)))
-                    ((safe-function-p op)
+
+              (cond ((safe-function-p op)
                      (apply (symbol-function op)
-                            (mapcar #'eval-plomeros rest))))))))))
+                            (mapcar #'eval-plomeros rest)))
+
+                    ((primitive-value-p eval-op)
+                     (apply eval-op
+                            (mapcar #'eval-plomeros rest)))
+
+                    ((procedurep eval-op)
+                     (apply-plomeros eval-op (mapcar #'eval-plomeros rest))))))))))
