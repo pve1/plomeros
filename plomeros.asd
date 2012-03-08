@@ -4,7 +4,9 @@
 
 (asdf:defsystem :plomeros
  :serial t
- :components ((:file "plomeros")
+ :components ((:file "package")
+              (:file "plomeros")
+              (:file "plomeros-eval")
               (:file "daily-set"))
 
  :depends-on (:cl-ppcre
