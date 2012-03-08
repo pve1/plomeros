@@ -67,10 +67,10 @@
 (defun start-plomeros (&rest rest &key nickname server)
   (let ((p (apply #'irc-connect
                   (append rest *plomeros-connect-args*))))
+    (setf *plomeros* p)
     (doplist (key val (append *plomeros-connect-args* rest))
       (set-property key val))
     (irc:add-hook p 'irc:irc-privmsg-message 'plomeros-hook)
-    (setf *plomeros* p)
     (mapc (curry #'irc:join p) *plomeros-channels*)
     (irc:read-message-loop *plomeros*)))
 
