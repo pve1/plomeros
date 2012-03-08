@@ -124,7 +124,10 @@
 
 (defun eval-plomeros (form &optional (*env* *env*))
   (format t "EVAL-PLOMEROS: ~S~%" form)
-  (cond ((symbolp form)
+  (cond ((keywordp form)
+         form)
+
+        ((symbolp form)
          (get-symbol-value form *env*))
 
         ((atom form)
