@@ -59,9 +59,13 @@
   (getf *plomeros-runtime-properties* prop))
 
 (defun plomeros-hook (msg)
-  (some (lambda (f) (ignore-errors
-                      (with-irc-message msg
-                        (funcall f msg))))
+  (some (lambda (f)
+          (multiple-value-bind (value error)
+              (ignore-errors
+                (with-irc-message msg (funcall f msg)))
+            (when error
+              (format t "~A~%" error))
+            value))
         *plomeros-hooks*))
 
 (defun start-plomeros (&rest rest &key nickname server)
