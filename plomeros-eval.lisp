@@ -9,53 +9,11 @@
 (defparameter *plomeros-safe-lisp-functions*
   '(cons list append reverse car cdr + - * / = equal cat random length nth))
 
-(defun safe-function-p (symbol)
-  (member symbol *plomeros-safe-lisp-functions* :test #'eq))
+(defun safe-function-p (function)
+  (typecase function
+    (symbol (member function *plomeros-safe-lisp-functions* :test #'eq))
+    (function (primitive-value-p function))))
 
-;;;; Primitives
-
-(defvar *primitive-symbols* (make-hash-table :test 'eq))
-(defvar *primitive-values* (make-hash-table :test 'eq))
-
-(defun clear-primitives ()
-  (setf *primitive-symbols* (make-hash-table :test 'eq))
-  (setf *primitive-values* (make-hash-table :test 'eq)))
-
-(defun lookup-primitive-symbol (symbol &optional (table *primitive-symbols*))
-  (gethash symbol table))
-
-(defun primitive-symbol-p (symbol &optional (table *primitive-symbols*))
-  (lookup-primitive-symbol symbol table))
-
-(defun primitive-value-p (value &optional (values *primitive-values*))
-  (gethash value values))
-
-(defun define-primitive-value (symbol value &optional
-                               (table *primitive-symbols*)
-                               (values *primitive-values*))
-  (remhash (gethash symbol table) values)
-  (setf (gethash symbol table) value)
-  (setf (gethash value values) symbol))
-
-(define-primitive-value nil nil)
-
-(define-primitive-value 'getp
-    (lambda (list indicator)
-      (getf list indicator)))
-
-(define-primitive-value 'setp
-    (lambda (symbol indicator value)
-      (let ((exist (get-symbol-value symbol)))
-        (if exist
-            (progn (setf (getf exist indicator) value)
-                   (set-symbol-value symbol exist *env*))
-            (set-symbol-value symbol (list indicator value) *env*)))))
-
-
-;;;; Util
-
-(defun cat (&rest args)
-  (apply #'concatenate 'string args))
 
 ;;;; Bindings
 
@@ -90,6 +48,59 @@
     (when binding
       (setf (binding-value binding) value)
       t)))
+
+
+;;;; Primitives
+
+(defvar *primitive-special-forms* (make-hash-table :test 'eq))
+(defvar *primitive-symbols* (make-hash-table :test 'eq))
+(defvar *primitive-values* (make-hash-table :test 'eq))
+
+(defun clear-primitives ()
+  (setf *primitive-special-forms* (make-hash-table :test 'eq))
+  (setf *primitive-symbols* (make-hash-table :test 'eq))
+  (setf *primitive-values* (make-hash-table :test 'eq)))
+
+(defun lookup-primitive-symbol (symbol &optional (table *primitive-symbols*))
+  (gethash symbol table))
+
+(defun primitive-symbol-p (symbol &optional (table *primitive-symbols*))
+  (lookup-primitive-symbol symbol table))
+
+(defun lookup-primitive-special-form (symbol &optional (table *primitive-special-forms*))
+  (gethash symbol table))
+
+(defun primitive-special-form-p (symbol &optional (table *primitive-special-forms*))
+  (lookup-primitive-special-form symbol table))
+
+(defun primitive-value-p (value &optional (values *primitive-values*))
+  (gethash value values))
+
+(defun define-primitive-value (symbol value &optional
+                               (table *primitive-symbols*)
+                               (values *primitive-values*))
+  (remhash (gethash symbol table) values)
+  (setf (gethash symbol table) value)
+  (setf (gethash value values) symbol))
+
+(defun define-primitive-special-form (symbol value &optional
+                                      (table *primitive-special-forms*)
+                                      (values *primitive-values*))
+  (define-primitive-value symbol value table values))
+
+(defun define-special-form (symbol value &optional
+                            (table *primitive-symbols*)
+                            (values *primitive-values*))
+  (remhash (gethash symbol table) values)
+  (setf (gethash symbol table) value)
+  (setf (gethash value values) symbol))
+
+
+
+;;;; Util
+
+(defun cat (&rest args)
+  (apply #'concatenate 'string args))
 
 
 ;;;; Global symbol table + (lexical) enviroment.
@@ -145,13 +156,6 @@
     (plomeros-say "Recursion is for noobs.")
     (error "Stack blown.")))
 
-(defun %cond (clauses &key (test #'identity))
-  (some (lambda (x)
-          (destructuring-bind (expression consequent) x
-            (when (funcall test (eval-plomeros expression))
-              (eval-plomeros consequent))))
-        clauses))
-
 (defun prettify-output (thing)
   (when thing
     (typecase thing
@@ -186,71 +190,21 @@
         ((listp form)
          (destructuring-case form
            ((quote quoted-form) quoted-form)
-
-           ((set symbol value)
-            (set-symbol-value symbol (eval-plomeros value) *env*))
-
-           ((update) (asdf:load-system :plomeros))
-
-           ((show msg &optional (channel *channel*))
-            (plomeros-say
-             (prin1-to-string
-              (prettify-output
-               (eval-plomeros msg)))
-             (eval-plomeros channel)) )
-
-           ((say msg &optional (channel *channel*))
-            (plomeros-say
-             (princ-to-string
-              (prettify-output
-               (eval-plomeros msg)))
-             (eval-plomeros channel)))
-
-           ((join chan) (irc:join *plomeros* (eval-plomeros chan)))
-           ((part chan) (irc:part *plomeros* (eval-plomeros chan)))
-
-           ((nick new-nick)
-            (let ((%new-nick (eval-plomeros new-nick)))
-              (irc:nick *plomeros* %new-nick)
-              (set-property :nickname %new-nick)))
-
-           ((lambda args &rest body)
-            (make-procedure args body *env*))
-
-           ((apply proc &rest args)
-            (apply-plomeros (eval-plomeros proc)
-                            (mapcar #'eval-plomeros args)))
-
-           #+nil
-           ((eval form)
-            (check-eval-depth)
-            (let* ((*eval-depth* (+ *eval-depth* 1))
-                   (%form (eval-plomeros form)))
-              (eval-plomeros %form)))
-
-           ((progn &rest forms)
-            (let ((result))
-              (mapc (lambda (x) (setf result (eval-plomeros x))) forms)
-              result))
-
-           ((cond &rest clauses)
-            (%cond clauses))
-
-           ((switch thing &rest clauses)
-            (let ((thing (eval-plomeros thing)))
-              (%cond clauses :test (lambda (x) (equal x thing)))))
-
+           
            ((t &rest rest)
-            (let* ((op (car form))
-                   (eval-op (eval-plomeros op)))
+            (let ((op (car form)))
+              (cond ((primitive-special-form-p op)
+                     (multiple-value-bind (form eval?)
+                         (apply (lookup-primitive-special-form op)
+                                rest)
+                       (if eval?
+                           (eval-plomeros form)
+                           form)))
 
-              (cond ((safe-function-p op)
-                     (apply (symbol-function op)
-                            (mapcar #'eval-plomeros rest)))
+                    (t (let ((actual-op (eval-plomeros op)))
+                         
+                         (cond ((primitive-value-p actual-op)
+                                (apply actual-op (mapcar #'eval-plomeros rest)))
 
-                    ((primitive-value-p eval-op)
-                     (apply eval-op
-                            (mapcar #'eval-plomeros rest)))
-
-                    ((procedurep eval-op)
-                     (apply-plomeros eval-op (mapcar #'eval-plomeros rest))))))))))
+                               ((procedurep actual-op)
+                                (apply-plomeros actual-op (mapcar #'eval-plomeros rest)))))))))))))
