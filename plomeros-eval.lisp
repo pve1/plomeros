@@ -190,7 +190,9 @@
         ((listp form)
          (destructuring-case form
            ((quote quoted-form) quoted-form)
-           
+
+           ((update) (asdf:load-system :plomeros))
+
            ((t &rest rest)
             (let ((op (car form)))
               (cond ((primitive-special-form-p op)
