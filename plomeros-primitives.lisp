@@ -38,9 +38,9 @@
 
 (defun %cond (clauses &key (test #'identity))
   (some (lambda (x)
-          (destructuring-bind (expression consequent) x
+          (destructuring-bind (expression &rest consequent) x
             (when (funcall test (eval-plomeros expression))
-              (eval-plomeros consequent))))
+              (eval-plomeros (cons 'progn consequent)))))
         clauses))
 
 (defspecial cond (&rest clauses)
