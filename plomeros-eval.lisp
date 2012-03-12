@@ -7,7 +7,7 @@
 ;;;; Functions "exported" from lisp.
 
 (defparameter *plomeros-safe-lisp-functions*
-  '(cons list append reverse car cdr + - * / = equal cat random length nth))
+  '(cons list append reverse car cdr + - * / = equal cat random length nth null zerop))
 
 (defun safe-function-p (function)
   (typecase function
