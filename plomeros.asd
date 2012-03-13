@@ -7,6 +7,7 @@
  :components ((:file "package")
               (:file "plomeros")
               (:file "plomeros-eval")
+              (:file "plomeros-primitives")
               (:file "daily-set"))
 
  :depends-on (:cl-ppcre
