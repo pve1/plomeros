@@ -8,7 +8,8 @@
               (:file "plomeros")
               (:file "plomeros-eval")
               (:file "plomeros-primitives")
-              (:file "daily-set"))
+              (:file "daily-set")
+              (:file "chat"))
 
  :depends-on (:cl-ppcre
               :cl-irc
