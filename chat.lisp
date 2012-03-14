@@ -17,8 +17,20 @@
 
 (defstruct follower (frequency 0) (words nil))
 
+(defun make-empty-chat-lexicon ()
+  (make-hash-table :test #'equal))
+
+(defvar *chat-lexicon* (make-empty-chat-lexicon))
+
+(defun intern-word (word)
+  (setf word (string-downcase word))
+  (let ((w (gethash word *chat-lexicon*)))
+    (or w (setf (gethash word *chat-lexicon*) word))))
+
 (defun record-word (word follower stats)
   (assert follower)
+  (setf word (intern-word word)
+        follower (mapcar #'intern-word follower))
   (let ((rec (gethash word stats)))
     (unless rec
       (setf rec (make-word-record))
@@ -64,20 +76,32 @@
                :key #'follower-frequency
                :total-freq (word-record-frequency word-record)))
 
+(defun random-follower (word-record)
+  (nth (random (length (word-record-followers word-record)))
+       (word-record-followers word-record)))
+
+(defun compact-word-record (rec)
+  (mapc (lambda (fol)
+          (setf (follower-words fol)
+                (mapcar #'intern-word (follower-words fol))))
+        (word-record-followers rec))
+  rec)
+
 (defun read-plomeros-chat-file (file)
   (let ((st (make-empty-chat-stats))
         (*package* (find-package :plomeros)))
     (with-open-file (s file)
       (loop :for entry = (read s nil)
          :while entry
-         :do (setf (gethash (car entry) st) (cdr entry))))
+         :do (setf (gethash (intern-word (car entry)) st)
+                   (compact-word-record (cdr entry)))))
     st))
-
 
 (defun serialize-stats (stats stream)
   (maphash (lambda (k v)
              (print (cons k v) stream))
            stats))
+
 ;;;;;;
 
 
@@ -108,7 +132,9 @@
             (return-from pick-random-first-word w)
             (decf nth-word))))))
 
-(defun generate-phrase (stats &optional (n (+ 5 (random 15))))
+
+(defun generate-phrase-tokens (stats &key (n (+ 5 (random 15)))
+                               (follower-func #'choose-follower))
   (let* ((first-word (pick-random-first-word stats))
          (punctuation '(("," 20 :space after :eos nil :cap nil)
                         ("." 10 :space after :eos t :cap t)
@@ -118,23 +144,31 @@
                         (":)" 2 :space before-after :eos t :cap t)))
          (words))
 
-    (push (string-capitalize first-word) words)
+    (push first-word words)
 
     (loop :with word = first-word
        :for k :from 0 to n
-       :for record = (alexandria:when-let (a (get-word-record word stats)) a)
+       :for record = (get-word-record word stats)
        :for follower = (when (and record (word-record-followers record))
-                         (choose-follower record))
+                         (funcall follower-func record))
        :do (if follower
                (setf word (car (last (follower-words follower))))
                (setf word (pick-random-first-word stats)))
 
        :do (if follower
                (dolist (w (follower-words follower))
-                 (push (string-downcase w) words))
+                 (push w words))
                (push (car (prob-choice punctuation :key #'second)) words)))
 
-    (setf words (nreverse words))
+    (nreverse words)))
+
+(defun format-phrase-tokens (tokens)
+  (let* ((punctuation '(("," 20 :space after :eos nil :cap nil)
+                        ("." 10 :space after :eos t :cap t)
+                        ("?" 3 :space after :eos t :cap t)
+                        (" " 3 :space nil :eos nil :cap nil)
+                        ("!" 2 :space after :eos t :cap t)
+                        (":)" 2 :space before-after :eos t :cap t))))
 
     (labels ((punctuationp (x)
                (member x punctuation :key #'car :test #'equal))
@@ -148,8 +182,8 @@
                (punctuation-prop x :eos)))
 
       (with-output-to-string (s)
-        (loop :with cap = nil
-           :for (a b) :on words :by #'cdr
+        (loop :with cap = t
+           :for (a b) :on tokens :by #'cdr
            :for punctuation-a = (punctuationp a)
            :for punctuation-b = (punctuationp b)
            :do
@@ -183,5 +217,18 @@
                                   (t ""))
                                 " ")))))))))
 
-(defprimitive chat (&optional n) (plomeros-say (generate-phrase *plomeros-chat-stats*)))
-(defprimitive chatn (n) (plomeros-say (generate-phrase *plomeros-chat-stats* n)))
+(defun generate-phrase (stats &key (n 10) (mood :normal))
+  (format-phrase-tokens
+   (case mood
+     (:crazy (generate-phrase-tokens stats :n n :follower-func #'random-follower))
+     (:normal (generate-phrase-tokens stats :n n)))))
+
+
+(defprimitive chat (&rest rest &key n mood)
+  (plomeros-say (apply #'generate-phrase *plomeros-chat-stats* rest)))
+
+(defprimitive chat-crazy (&rest rest &key n)
+  (plomeros-say (apply #'generate-phrase *plomeros-chat-stats* :mood :crazy rest)))
+
+(defprimitive chatn (n &rest rest &key mood)
+  (plomeros-say (apply #'generate-phrase *plomeros-chat-stats* :n n rest)))
