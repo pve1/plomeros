@@ -142,7 +142,7 @@
 
 (defun tokenize-irssi-line (line &key ignore-users)
   (cl-ppcre:register-groups-bind (user msg)
-      ("^\\d\\d:\\d\\d <.(.*?)> (.*)" line)
+      ("^\\d\\d:\\d\\d < *([^ ]*?)> (.*)" line)
     (unless (member user ignore-users :test #'equalp)
       (when-let ((tokens (split-line msg)))
         tokens))))
