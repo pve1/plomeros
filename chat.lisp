@@ -44,6 +44,14 @@
            (push (make-follower :words follower :frequency 1)
                  (word-record-followers rec))))))
 
+(defun record-tokens (stats tokens n)
+  (loop :for words = tokens :then (cdr words)
+     :for sub = (subseq words 0 (min n (length words)))
+     :while (< 1 (length sub))
+     :do (record-word (first sub)
+                      (rest sub)
+                      stats)))
+
 (defun get-word-record (word stats)
   (gethash word stats))
 
@@ -102,20 +110,72 @@
              (print (cons k v) stream))
            stats))
 
-;;;;;;
 
+;;;; Parsing of input
+
+(defun %make-line-generator (stream)
+  (lambda () (read-line stream nil)))
+
+(defun %ensure-line-generator (thing)
+  (etypecase thing
+    (function thing)
+    (stream (%make-line-generator thing))))
+
+(defmacro do-while-lines ((line-var generator) &body body)
+  `(loop :for ,line-var = (funcall ,generator)
+      :while ,line-var
+      :do ,@body))
+
+(defun make-line-generator (stream tokenize-function)
+  (let ((s (%ensure-line-generator stream)))
+    (lambda ()
+      (do-while-lines (line s)
+        (when-let ((tokens (funcall tokenize-function line)))
+          (return tokens))))))
+
+;; Normal text
+
+(defun make-text-line-generator (stream)
+  (make-line-generator stream #'split-line))
+
+;; Irssi format
+
+(defun tokenize-irssi-line (line &key ignore-users)
+  (cl-ppcre:register-groups-bind (user msg)
+      ("^\\d\\d:\\d\\d <.(.*?)> (.*)" line)
+    (unless (member user ignore-users :test #'equalp)
+      (when-let ((tokens (split-line msg)))
+        tokens))))
+
+(defun make-irssi-line-generator (stream &key ignore-users)
+  (make-line-generator
+   stream
+   (rcurry #'tokenize-irssi-line :ignore-users ignore-users)))
+
+(defun ensure-line-generator (thing)
+  (etypecase thing
+    (function thing)
+    (stream (make-text-line-generator thing))))
+
+;; Stream should be line token generator of file stream.
 
 (defun compile-stats-n (n stream)
-  (let ((stats (make-empty-chat-stats)))
-    (loop :for line = (read-line stream nil)
+  (let ((stats (make-empty-chat-stats))
+        (gen (ensure-line-generator stream)))
+    (loop :for line = (funcall gen)
        :while line
-       :do (loop :for words = (split-line line) :then (cdr words)
-              :for sub = (subseq words 0 (min n (length words)))
-              :while (< 1 (length sub))
-              :do (record-word (first sub)
-                               (rest sub)
-                               stats)))
+       :do (record-tokens stats line n))
     (finalize-word-counts stats)))
+
+(defun shell-compile-stats-for-file (in-file out-file n &key format ignore-users)
+  (with-open-file (in in-file)
+    (let* ((in-gen (case format
+                     (:irssi (make-irssi-line-generator
+                              in :ignore-users ignore-users))
+                     (t  (make-text-line-generator in))))
+           (stats (compile-stats-n n in-gen)))
+      (with-output-to-file (out out-file)
+        (serialize-stats stats out)))))
 
 
 (defvar *plomeros-chat-stats* (make-empty-chat-stats))
