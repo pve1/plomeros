@@ -68,6 +68,20 @@
             value))
         *plomeros-hooks*))
 
+(defun plomeros-read-message-loop (&key (connection *plomeros*)
+                                   (retry-interval 300)
+                                   max-retries)
+  (labels ((%message-loop (&optional retries)
+             (handler-case (irc:read-message-loop connection)
+               (usocket:socket-error (x)
+                 (progn (format t "Caught ~A~%" x)
+                        (format t "Sleeping for ~A seconds.~%"
+                                retry-interval)
+                        (sleep retry-interval))))
+             (unless (and retries (zerop retries))
+               (%message-loop (when retries (1- retries))))))
+    (%message-loop max-retries)))
+
 (defun start-plomeros (&rest rest &key nickname server)
   (let ((p (apply #'irc-connect
                   (append rest *plomeros-connect-args*))))
@@ -76,7 +90,7 @@
       (set-property key val))
     (irc:add-hook p 'irc:irc-privmsg-message 'plomeros-hook)
     (mapc (curry #'irc:join p) *plomeros-channels*)
-    (irc:read-message-loop *plomeros*)))
+    (plomeros-read-message-loop)))
 
 (defun plomeros-say (msg &optional
                      (channel *channel*)
