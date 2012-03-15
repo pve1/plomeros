@@ -134,8 +134,9 @@
 
 
 (defun generate-phrase-tokens (stats &key (n (+ 5 (random 15)))
-                               (follower-func #'choose-follower))
-  (let* ((first-word (pick-random-first-word stats))
+                               (follower-func #'choose-follower)
+                               topic)
+  (let* ((first-word (or topic (pick-random-first-word stats)))
          (punctuation '(("," 20 :space after :eos nil :cap nil)
                         ("." 10 :space after :eos t :cap t)
                         ("?" 3 :space after :eos t :cap t)
@@ -217,18 +218,29 @@
                                   (t ""))
                                 " ")))))))))
 
-(defun generate-phrase (stats &key (n 10) (mood :normal))
+(defun generate-phrase (stats &key (n 10) (mood :normal) topic)
   (format-phrase-tokens
    (case mood
-     (:crazy (generate-phrase-tokens stats :n n :follower-func #'random-follower))
-     (:normal (generate-phrase-tokens stats :n n)))))
+     (:crazy (generate-phrase-tokens stats :n n :follower-func #'random-follower :topic topic))
+     (:normal (generate-phrase-tokens stats :n n :topic topic)))))
 
 
-(defprimitive chat (&rest rest &key n mood)
+(defun %plomeros-chat (&rest rest &key n mood topic)
   (plomeros-say (apply #'generate-phrase *plomeros-chat-stats* rest)))
 
-(defprimitive chat-crazy (&rest rest &key n)
-  (plomeros-say (apply #'generate-phrase *plomeros-chat-stats* :mood :crazy rest)))
+(defprimitive chat (&rest rest)
+  (apply #'%plomeros-chat rest))
+
+(defprimitive chat-about (topic &rest rest)
+  (apply #'%plomeros-chat :topic topic rest))
+
+(defprimitive chat-crazy (&rest rest)
+  (apply #'%plomeros-chat :mood :crazy rest))
+
+(defprimitive chat-crazy-about (topic &rest rest)
+  (apply #'%plomeros-chat :mood :crazy :topic topic rest))
 
 (defprimitive chatn (n &rest rest &key mood)
-  (plomeros-say (apply #'generate-phrase *plomeros-chat-stats* :n n rest)))
+  (apply #'%plomeros-chat :n n rest))
+
+ 
