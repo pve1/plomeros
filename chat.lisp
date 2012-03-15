@@ -132,17 +132,17 @@
             (return-from pick-random-first-word w)
             (decf nth-word))))))
 
-
-(defun generate-phrase-tokens (stats &key (n (+ 5 (random 15)))
-                               (follower-func #'choose-follower)
-                               topic)
-  (let* ((first-word (or topic (pick-random-first-word stats)))
-         (punctuation '(("," 20 :space after :eos nil :cap nil)
+(defvar *punctuation* '(("," 20 :space after :eos nil :cap nil)
                         ("." 10 :space after :eos t :cap t)
                         ("?" 3 :space after :eos t :cap t)
                         (" " 3 :space nil :eos nil :cap nil)
                         ("!" 2 :space after :eos t :cap t)
                         (":)" 2 :space before-after :eos t :cap t)))
+
+(defun generate-phrase-tokens (stats &key (n (+ 5 (random 15)))
+                               (follower-func #'choose-follower)
+                               topic)
+  (let* ((first-word (or topic (pick-random-first-word stats)))
          (words))
 
     (push first-word words)
@@ -159,64 +159,57 @@
        :do (if follower
                (dolist (w (follower-words follower))
                  (push w words))
-               (push (car (prob-choice punctuation :key #'second)) words)))
+               (push (car (prob-choice *punctuation* :key #'second)) words)))
 
     (nreverse words)))
 
 (defun format-phrase-tokens (tokens)
-  (let* ((punctuation '(("," 20 :space after :eos nil :cap nil)
-                        ("." 10 :space after :eos t :cap t)
-                        ("?" 3 :space after :eos t :cap t)
-                        (" " 3 :space nil :eos nil :cap nil)
-                        ("!" 2 :space after :eos t :cap t)
-                        (":)" 2 :space before-after :eos t :cap t))))
+  (labels ((punctuationp (x)
+             (member x *punctuation* :key #'car :test #'equal))
+           (punctuation-prop (x prop)
+             (getf (find x *punctuation* :test #'equal :key #'first) prop))
+           (punctuation-space (x)
+             (punctuation-prop x :space))
+           (punctuation-cap (x)
+             (punctuation-prop x :cap))
+           (punctuation-eos (x)
+             (punctuation-prop x :eos)))
 
-    (labels ((punctuationp (x)
-               (member x punctuation :key #'car :test #'equal))
-             (punctuation-prop (x prop)
-               (getf (find x punctuation :test #'equal :key #'first) prop))
-             (punctuation-space (x)
-               (punctuation-prop x :space))
-             (punctuation-cap (x)
-               (punctuation-prop x :cap))
-             (punctuation-eos (x)
-               (punctuation-prop x :eos)))
+    (with-output-to-string (s)
+      (loop :with cap = t
+         :for (a b) :on tokens :by #'cdr
+         :for punctuation-a = (punctuationp a)
+         :for punctuation-b = (punctuationp b)
+         :do
+         (when cap
+           (setf a (string-capitalize a))
+           (setf cap nil))
+         (cond ((and punctuation-a
+                     (not b))
+                (format s "~A" (case (punctuation-eos a)
+                                 ((nil) ".")
+                                 (t a))))
 
-      (with-output-to-string (s)
-        (loop :with cap = t
-           :for (a b) :on tokens :by #'cdr
-           :for punctuation-a = (punctuationp a)
-           :for punctuation-b = (punctuationp b)
-           :do
-           (when cap
-             (setf a (string-capitalize a))
-             (setf cap nil))
-           (cond ((and punctuation-a
-                       (not b))
-                  (format s "~A" (case (punctuation-eos a)
-                                   ((nil) ".")
-                                   (t a))))
+               (punctuation-a
+                (let ((space (punctuation-space a)))
+                  (when (punctuation-cap a)
+                    (setf cap t))
+                  (format s "~A~A"
+                          a
+                          (case space
+                            ((after before-after)  " ")
+                            (t "")))))
 
-                 (punctuation-a
-                  (let ((space (punctuation-space a)))
-                    (when (punctuation-cap a)
-                      (setf cap t))
-                    (format s "~A~A"
-                            a
-                            (case space
-                              ((after before-after)  " ")
-                              (t "")))))
+               ((not b)
+                (format s "~A." a))
 
-                 ((not b)
-                  (format s "~A." a))
-
-                 (t (format s "~A~A"
-                            a
-                            (if punctuation-b
-                                (case (punctuation-space b)
-                                  ((before before-after) " ")
-                                  (t ""))
-                                " ")))))))))
+               (t (format s "~A~A"
+                          a
+                          (if punctuation-b
+                              (case (punctuation-space b)
+                                ((before before-after) " ")
+                                (t ""))
+                              " "))))))))
 
 (defun generate-phrase (stats &key (n 10) (mood :normal) topic)
   (format-phrase-tokens
