@@ -208,6 +208,7 @@
     (push first-word words)
 
     (loop :with word = first-word
+       :while (< (length words) n)
        :for k :from 0 to n
        :for record = (get-word-record word stats)
        :for follower = (when (and record (word-record-followers record))
