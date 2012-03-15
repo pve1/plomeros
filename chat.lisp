@@ -3,9 +3,7 @@
 (let ((f (complement #'alpha-char-p)))
   (defun split-line (line)
     (split-sequence:split-sequence-if
-     f
-     line
-     :remove-empty-subseqs t)))
+     f line :remove-empty-subseqs t)))
 
 (defun make-empty-chat-stats ()
   (make-hash-table :test 'equal))
