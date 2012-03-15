@@ -118,11 +118,18 @@
 
 ;;;; Hook
 
+(defvar *plomeros-readtable* (copy-readtable))
+
+(set-macro-character #\# (lambda (x y)
+                           (error "Sharpsign not supported."))
+                     nil *plomeros-readtable*)
+
 (defun plomeros-read-hook (msg)
   (register-groups-bind (recipient form)
       ("(.*?)[,:] *?(\\(.*\\))" *message*)
     (when (equalp recipient (get-property :nickname))
       (let* ((*read-eval* nil)
+             (*readtable* *plomeros-readtable*)
              (*package* (find-package :plomeros))
              (sexp (read-from-string form)))
         (eval-plomeros sexp)
