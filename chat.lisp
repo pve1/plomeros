@@ -273,7 +273,10 @@
 (defun generate-phrase (stats &key (n 10) (mood :normal) topic)
   (format-phrase-tokens
    (case mood
-     (:crazy (generate-phrase-tokens stats :n n :follower-func #'random-follower :topic topic))
+     (:crazy (generate-phrase-tokens stats
+                                     :n n
+                                     :follower-func #'random-follower
+                                     :topic topic))
      (:normal (generate-phrase-tokens stats :n n :topic topic)))))
 
 
