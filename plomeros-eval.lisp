@@ -9,10 +9,16 @@
 (defparameter *plomeros-safe-lisp-functions*
   '(cons list append reverse car cdr + - * / = equal cat random length nth null zerop))
 
+(defparameter *plomeros-safe-lisp-specials*
+  '(*sender* *message* *channel*))
+
 (defun safe-function-p (function)
   (typecase function
     (symbol (member function *plomeros-safe-lisp-functions* :test #'eq))
     (function (primitive-value-p function))))
+
+(defun safe-special-p (symbol)
+  (member symbol *plomeros-safe-lisp-specials* :test #'eq))
 
 
 ;;;; Bindings

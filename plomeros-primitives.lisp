@@ -52,6 +52,9 @@
                            (or (eq t x)
                                (equal x thing))))))
 
+(defprimitive current (special-variable)
+  (when (safe-special-p special-variable)
+    (symbol-value special-variable)))
 
 (defprimitive getp (list indicator)
   (getf list indicator))
