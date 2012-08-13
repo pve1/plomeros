@@ -138,17 +138,17 @@
 
 ;; Irssi format
 
-(defun tokenize-irssi-line (line &key ignore-users)
+(defun tokenize-irssi-line (line &key user-predicate)
   (cl-ppcre:register-groups-bind (user msg)
       ("^\\d\\d:\\d\\d < *([^ ]*?)> (.*)" line)
-    (unless (member user ignore-users :test #'equalp)
+    (when (funcall user-predicate user)
       (when-let ((tokens (split-line msg)))
         tokens))))
 
-(defun make-irssi-line-generator (stream &key ignore-users)
+(defun make-irssi-line-generator (stream &key user-predicate)
   (make-line-generator
    stream
-   (rcurry #'tokenize-irssi-line :ignore-users ignore-users)))
+   (rcurry #'tokenize-irssi-line :user-predicate user-predicate)))
 
 (defun ensure-line-generator (thing)
   (etypecase thing
@@ -169,7 +169,11 @@
   (with-open-file (in in-file)
     (let* ((in-gen (case format
                      (:irssi (make-irssi-line-generator
-                              in :ignore-users ignore-users))
+                              in
+                              :user-predicate
+                              (complement (rcurry #'member
+                                                  ignore-users
+                                                  :test #'equalp))))
                      (t  (make-text-line-generator in))))
            (stats (compile-stats-n n in-gen)))
       (with-output-to-file (out out-file)
