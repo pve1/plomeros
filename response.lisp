@@ -57,3 +57,7 @@
                (list i (response-regex r)))
              (iota (length *responses*))
              *responses*))))
+
+(unless (member 'response-hook *plomeros-hooks*)
+  (setf *plomeros-hooks* (append *plomeros-hooks*
+                                 '(response-hook))))
