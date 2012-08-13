@@ -1,6 +1,6 @@
 (in-package :plomeros)
 
-(defparameter *responses* nil)
+(defvar *responses* nil)
 
 (defstruct (response (:constructor %make-response)) regex fn)
 
