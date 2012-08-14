@@ -237,3 +237,12 @@
                                          (mapcar #'eval-plomeros rest)))))))))))))
     (format t "-> ~S~%" result)
     result))
+
+(defun load-plomeros (file)
+  (let* ((*read-eval* nil)
+         (*readtable* *plomeros-readtable*)
+         (*package* (find-package :plomeros)))
+    (with-open-file (f file)
+      (loop :for form = (read f nil)
+         :while form
+         :do (eval-plomeros form)))))
