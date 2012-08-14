@@ -190,38 +190,46 @@
     (eval-plomeros (cons 'progn (procedure-body proc)))))
 
 (defun eval-plomeros (form &optional (*env* *env*))
-  (format t "EVAL-PLOMEROS: ~S~%" form)
-  (cond ((null form) nil)
+  (let ((result))
+    (format t "EVAL-PLOMEROS: ~S~%" form)
+    (setf result
+          (cond ((null form) nil)
 
-        ((keywordp form)
-         form)
+                ((keywordp form)
+                 form)
 
-        ((symbolp form)
-         (get-symbol-value form *env*))
+                ((symbolp form)
+                 (get-symbol-value form *env*))
 
-        ((atom form)
-         form)
+                ((atom form)
+                 form)
 
-        ((listp form)
-         (destructuring-case form
-           ((quote quoted-form) quoted-form)
+                ((listp form)
+                 (destructuring-case form
+                   ((quote quoted-form) quoted-form)
 
-           ((update) (asdf:load-system :plomeros))
+                   ((update) (asdf:load-system :plomeros))
 
-           ((t &rest rest)
-            (let ((op (car form)))
-              (cond ((primitive-special-form-p op)
-                     (multiple-value-bind (form eval?)
-                         (apply (lookup-primitive-special-form op)
-                                rest)
-                       (if eval?
-                           (eval-plomeros form)
-                           form)))
+                   ((t &rest rest)
+                    (let ((op (car form)))
+                      (cond ((primitive-special-form-p op)
+                             (multiple-value-bind (form eval?)
+                                 (apply (lookup-primitive-special-form op)
+                                        rest)
+                               (if eval?
+                                   (eval-plomeros form)
+                                   form)))
 
-                    (t (let ((actual-op (eval-plomeros op)))
-                         
-                         (cond ((primitive-value-p actual-op)
-                                (apply actual-op (mapcar #'eval-plomeros rest)))
+                            (t (let ((actual-op (eval-plomeros op)))
 
-                               ((procedurep actual-op)
-                                (apply-plomeros actual-op (mapcar #'eval-plomeros rest)))))))))))))
+                                 (cond ((primitive-value-p actual-op)
+                                        (apply
+                                         actual-op
+                                         (mapcar #'eval-plomeros rest)))
+
+                                       ((procedurep actual-op)
+                                        (apply-plomeros
+                                         actual-op
+                                         (mapcar #'eval-plomeros rest)))))))))))))
+    (format t "-> ~S~%" result)
+    result))
