@@ -12,8 +12,7 @@
              (cl-ppcre:scan-to-strings regex msg-string)
            (when match
              (let ((subs-list (coerce subs 'list)))
-               (apply-plomeros (eval-plomeros plomeros-function)
-                               (mapcar #'eval-plomeros subs-list))
+               (eval-plomeros (cons plomeros-function subs-list))
                t))))))
 
 (defun apply-response (fn thing)
