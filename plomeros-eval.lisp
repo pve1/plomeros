@@ -158,7 +158,8 @@
   (nthcdr 3 body))
 
 (defun procedurep (thing)
-  (eq (car thing) 'lambda-proc))
+  (and (listp thing)
+       (eq (car thing) 'lambda-proc)))
 
 
 ;;;; Eval
