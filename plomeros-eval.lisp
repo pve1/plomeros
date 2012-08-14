@@ -204,6 +204,9 @@
                 ((atom form)
                  form)
 
+                ((procedurep form)
+                 form)
+
                 ((listp form)
                  (destructuring-case form
                    ((quote quoted-form) quoted-form)
