@@ -144,8 +144,9 @@
 
 ;;;; Lambda
 
+
 (defun make-procedure (args body env)
-  `(lambda ,args ,env ,@body))
+  `(lambda-proc ,args ,env ,@body))
 
 (defun procedure-arguments (proc)
   (second proc))
@@ -157,7 +158,7 @@
   (nthcdr 3 body))
 
 (defun procedurep (thing)
-  (eq (car thing) 'lambda))
+  (eq (car thing) 'lambda-proc))
 
 
 ;;;; Eval
