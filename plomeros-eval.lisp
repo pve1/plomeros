@@ -174,7 +174,8 @@
   (when thing
     (typecase thing
       (function '#:PRIMITIVE-FUNCTION)
-      (list (mapcar #'prettify-output thing))
+      (list (cons (prettify-output (car thing))
+                  (prettify-output (cdr thing))))
       (t thing))))
 
 (defun apply-plomeros (proc args)
