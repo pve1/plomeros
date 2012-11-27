@@ -10,7 +10,8 @@
               (:file "plomeros-primitives")
               (:file "daily-set")
               (:file "chat")
-              (:file "response"))
+              (:file "response")
+              (:file "haiku"))
 
  :depends-on (:cl-ppcre
               :cl-irc
