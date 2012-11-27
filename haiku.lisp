@@ -2,12 +2,23 @@
 
 ;;;; Haiku
 
+(defun word-syllables-cached (string)
+  (let* ((cache (load-time-value (make-hash-table :test 'equal)))
+         (cache-hit (gethash string cache)))
+    (if cache-hit
+        cache-hit
+        (progn
+          (let ((new (case (length string)
+                       (0 0)
+                       (t (max 1
+                               (/ (length (cl-ppcre:all-matches
+                                           "[aeiouyåäö]+" string))
+                                  2))))))
+            (setf (gethash string cache) new)
+            new)))))
+
 (defmethod word-syllables ((string string))
-  (case (length string)
-    (0 0)
-    (t (max 1
-            (/ (length (cl-ppcre:all-matches "[aeiouyåäö]+" string))
-               2)))))
+  (word-syllables-cached string))
 
 (defmethod word-syllables ((word follower))
   (reduce #'+ (follower-words word) :key #'word-syllables))
