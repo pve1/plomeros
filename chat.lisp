@@ -20,6 +20,14 @@
 
 (defvar *chat-lexicon* (make-empty-chat-lexicon))
 
+(defun proper-word-p (word)
+  (let ((vowels (load-time-value
+                 (map 'list #'identity
+                      "aeiouyåäö"))))
+    (some (lambda (c)
+            (member c vowels :test #'eql))
+          word)))
+
 (defun intern-word (word)
   (setf word (string-downcase word))
   (let ((w (gethash word *chat-lexicon*)))
@@ -27,20 +35,22 @@
 
 (defun record-word (word follower stats)
   (assert follower)
-  (setf word (intern-word word)
-        follower (mapcar #'intern-word follower))
-  (let ((rec (gethash word stats)))
-    (unless rec
-      (setf rec (make-word-record))
-      (setf (gethash word stats) rec))
-     (incf (word-record-frequency rec))
-     (let ((fol (find follower (word-record-followers rec)
-                      :test #'equal
-                      :key #'follower-words)))
-       (if fol
-           (incf (follower-frequency fol))
-           (push (make-follower :words follower :frequency 1)
-                 (word-record-followers rec))))))
+  (when (and (proper-word-p word)
+             (every #'proper-word-p follower))
+    (setf word (intern-word word)
+          follower (mapcar #'intern-word follower))
+    (let ((rec (gethash word stats)))
+      (unless rec
+        (setf rec (make-word-record))
+        (setf (gethash word stats) rec))
+      (incf (word-record-frequency rec))
+      (let ((fol (find follower (word-record-followers rec)
+                       :test #'equal
+                       :key #'follower-words)))
+        (if fol
+            (incf (follower-frequency fol))
+            (push (make-follower :words follower :frequency 1)
+                  (word-record-followers rec)))))))
 
 (defun record-tokens (stats tokens n)
   (loop :for words = tokens :then (cdr words)
@@ -63,9 +73,13 @@
   (maphash (lambda (k v)
              (if (= 1 (length (word-record-followers v)))
                  (remhash k stats)
-                 (setf (word-record-followers v)
-                       (sort (word-record-followers v)
-                             #'> :key #'follower-frequency))))
+                 (progn
+                   (setf (word-record-frequency v)
+                         (reduce #'+ (word-record-followers v)
+                                 :key #'follower-frequency))
+                   (setf (word-record-followers v)
+                         (sort (word-record-followers v)
+                               #'> :key #'follower-frequency)))))
            stats)
   stats)
 
@@ -93,15 +107,27 @@
         (word-record-followers rec))
   rec)
 
+(defun keep-word-record-followers (rec pred)
+  (setf (word-record-followers rec)
+        (remove-if
+         (lambda (follower)
+           (not (every pred (follower-words follower))))
+         (word-record-followers rec)))
+  rec)
+
 (defun read-plomeros-chat-file (file)
   (let ((st (make-empty-chat-stats))
         (*package* (find-package :plomeros)))
     (with-open-file (s file)
       (loop :for entry = (read s nil)
-         :while entry
-         :do (setf (gethash (intern-word (car entry)) st)
-                   (compact-word-record (cdr entry)))))
-    st))
+            :while entry
+            :do (when (proper-word-p (car entry))
+                  (setf (gethash (intern-word (car entry)) st)
+                        (compact-word-record
+                         (keep-word-record-followers
+                          (cdr entry)
+                          #'proper-word-p))))))
+    (finalize-word-counts st)))
 
 (defun serialize-stats (stats stream)
   (maphash (lambda (k v)
